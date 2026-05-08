@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+rabbit/
+venv/
+.env
+
+# IDEs
+.vscode/
+.idea/
+
+# Database
+*.sqlite3
+
+# System
+.DS_Store
+npm-debug.log*
+*.log
