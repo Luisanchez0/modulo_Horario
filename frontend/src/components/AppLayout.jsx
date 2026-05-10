@@ -34,27 +34,27 @@ function AppLayout({
     }
     return undefined
   }, [mensaje, clearMensaje])
+  const rolSesion = (usuarioSesion?.rol || 'DOCENTE').toUpperCase()
+  const nombreSesion = usuarioSesion?.nombre || usuarioSesion?.sub || usuarioSesion?.correo || 'Usuario SIAE'
+  const claveSesion = usuarioSesion?.matricula || usuarioSesion?.id || rolSesion
+
   return (
     <main className="edu-app">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand__primary">SISTEMA</span>
-          <span>ESCOLAR</span>
-        </div>
-        <div className="topbar__user">
-          <span>Usuario</span>
-          <strong>{usuarioSesion?.rol ?? 'N/D'}</strong>
-          <span
-            className={`role-badge ${(usuarioSesion?.rol || '').toUpperCase() === 'ADMIN' ? 'role-badge--admin' : 'role-badge--docente'}`}
-          >
-            {(usuarioSesion?.rol || 'DOCENTE').toUpperCase()}
-          </span>
-        </div>
-      </header>
-
       <div className="shell">
         <aside className="sidebar">
-          <div className="sidebar__search">Buscar</div>
+          <div className="brand">
+            <span className="brand__primary">SIAE UNACH</span>
+            <span>Gestion Administrativa</span>
+          </div>
+
+          <div className="sidebar__user">
+            <span>Bienvenido(a),</span>
+            <strong>{nombreSesion}</strong>
+            <small>{claveSesion}</small>
+          </div>
+
+          <p className="sidebar__section">Menu {rolSesion === 'ADMIN' ? 'Administrador' : 'Docente'}</p>
+
           <nav className="module-nav" aria-label="Navegacion por modulos">
             {moduleLinks.map((module) => (
               <NavLink
@@ -69,20 +69,22 @@ function AppLayout({
               </NavLink>
             ))}
           </nav>
+
+          <button type="button" className="sidebar__logout" onClick={cerrarSesion}>
+            <span aria-hidden="true">←</span>
+            Cerrar Sesion
+          </button>
         </aside>
 
         <section className="content">
           <div className="content__bar">
             <div>
-              <p className="breadcrumb">Inicio / {dashboardSubtitle}</p>
+              <p className="breadcrumb">SIAE UNACH - {dashboardSubtitle}</p>
               <h1>{dashboardTitle}</h1>
             </div>
             <div className="content__actions">
               <button type="button" onClick={cargarDatos} disabled={loading}>
                 {loading ? 'Actualizando...' : 'Actualizar'}
-              </button>
-              <button type="button" className="button-alt" onClick={cerrarSesion}>
-                Salir
               </button>
             </div>
           </div>
