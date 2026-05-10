@@ -46,6 +46,30 @@ function describirTurno(turno) {
   return '07:00 a 14:00 o 15:00 a 22:00'
 }
 
+
+
+
+
+// SSO temporal para pruebas — remover antes de producción final
+const params = new URLSearchParams(window.location.search);
+const tokenUrl = params.get("token");
+const rolUrl = params.get("rol");
+const rfcUrl = params.get("rfc");
+
+if (tokenUrl) {
+  localStorage.setItem("token", tokenUrl);
+  if (rolUrl) localStorage.setItem("userRole", rolUrl);
+  if (rfcUrl) localStorage.setItem("userRFC", rfcUrl);
+  window.history.replaceState({}, "", window.location.pathname);
+}
+
+
+
+
+
+
+
+
 function App() {
   const API = useMemo(
     () => ({
