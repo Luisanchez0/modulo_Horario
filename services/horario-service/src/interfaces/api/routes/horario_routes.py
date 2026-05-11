@@ -8,6 +8,7 @@ from src.domain.services.validaciones import HorarioDomainService
 from src.infrastructure.repositories.disponibilidad_repository_impl import DisponibilidadRepositoryImpl
 from src.infrastructure.repositories.horario_repository_impl import HorarioRepositoryImpl
 from src.infrastructure.repositories.periodo_repository_impl import PeriodoRepositoryImpl
+from src.infrastructure.repositories.disponibilidad_repository_impl import DisponibilidadRepositoryImpl
 from src.infrastructure.clients.catalog_services_client import CatalogServicesClient, UpstreamServiceError
 from fastapi import Header
 from src.interfaces.api.schemas.horario_schema import (
@@ -96,14 +97,75 @@ def _validate_turnos_for_horario(payload: HorarioCreate) -> None:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
     try:
+        materia = client.get_materia(payload.materia_id) or {}
+    except UpstreamServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    try:
         HorarioDomainService.validar_horario_en_turno(
             payload.hora_inicio,
             payload.hora_fin,
             docente.get("turno"),
             "el docente",
         )
+        HorarioDomainService.validar_horario_en_turno(
+            payload.hora_inicio,
+            payload.hora_fin,
+            materia.get("turno"),
+            "la materia",
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+def _validate_disponibilidad_for_horario(payload: HorarioCreate) -> None:
+    repo = DisponibilidadRepositoryImpl()
+    disponibilidades = repo.obtener_por_docente(payload.docente_id)
+    if not disponibilidades:
+        return
+
+    candidato = Horario(
+        id=payload.id,
+        docente_id=payload.docente_id,
+        materia_id=payload.materia_id,
+        aula_id=payload.aula_id,
+        periodo_id=payload.periodo_id,
+        dia=payload.dia,
+        hora_inicio=payload.hora_inicio,
+        hora_fin=payload.hora_fin,
+    )
+
+    try:
+        HorarioDomainService.validar_disponibilidad(candidato, disponibilidades)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+def _validate_conflictos_for_horario(payload: HorarioCreate, horario_id: int | None = None) -> None:
+    repo = _repo()
+    horarios_docente = repo.obtener_por_docente_y_periodo(payload.docente_id, payload.periodo_id)
+    for existente in horarios_docente:
+        if horario_id is not None and existente.id == horario_id:
+            continue
+        if existente.dia == payload.dia and HorarioDomainService.hay_conflicto(
+            payload.hora_inicio,
+            payload.hora_fin,
+            existente.hora_inicio,
+            existente.hora_fin,
+        ):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="El docente ya tiene clase en ese horario")
+
+    horarios_aula = repo.obtener_por_aula_y_periodo(payload.aula_id, payload.periodo_id)
+    for existente in horarios_aula:
+        if horario_id is not None and existente.id == horario_id:
+            continue
+        if existente.dia == payload.dia and HorarioDomainService.hay_conflicto(
+            payload.hora_inicio,
+            payload.hora_fin,
+            existente.hora_inicio,
+            existente.hora_fin,
+        ):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="El aula ya está ocupada")
 
 
 def _require_admin(authorization: str | None) -> None:
@@ -125,6 +187,7 @@ def crear_horario(payload: HorarioCreate, authorization: str | None = Header(Non
     )
     _ensure_period_exists(payload.periodo_id)
     _validate_turnos_for_horario(payload)
+    _validate_disponibilidad_for_horario(payload)
     nuevo_horario = Horario(
         id=payload.id,
         docente_id=payload.docente_id,
@@ -173,6 +236,8 @@ def actualizar_horario(horario_id: int, payload: HorarioCreate, authorization: s
     )
     _ensure_period_exists(payload.periodo_id)
     _validate_turnos_for_horario(payload)
+    _validate_disponibilidad_for_horario(payload)
+    _validate_conflictos_for_horario(payload, horario_id)
     horario_actualizado = Horario(
         id=horario_id,
         docente_id=payload.docente_id,

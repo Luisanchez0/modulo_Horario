@@ -14,10 +14,12 @@ function DocentesPage({ isAdmin, docentes, onCreate, onUpdate, onDelete }) {
   const [editingId, setEditingId] = useState(null)
   const [busy, setBusy] = useState(false)
   const [docentePendienteEliminar, setDocentePendienteEliminar] = useState(null)
+  const [formError, setFormError] = useState('')
 
   function resetForm() {
     setForm(emptyDocente)
     setEditingId(null)
+    setFormError('')
   }
 
   function startEdit(docente) {
@@ -31,11 +33,13 @@ function DocentesPage({ isAdmin, docentes, onCreate, onUpdate, onDelete }) {
       turno: docente.turno || 'AMBOS',
       estado: Boolean(docente.estado),
     })
+    setFormError('')
   }
 
   async function handleSubmit(event) {
     event.preventDefault()
     setBusy(true)
+    setFormError('')
 
     try {
       const payload = {
@@ -61,6 +65,8 @@ function DocentesPage({ isAdmin, docentes, onCreate, onUpdate, onDelete }) {
       }
 
       resetForm()
+    } catch (error) {
+      setFormError(error.message || 'No se pudo guardar el docente.')
     } finally {
       setBusy(false)
     }
@@ -85,30 +91,71 @@ function DocentesPage({ isAdmin, docentes, onCreate, onUpdate, onDelete }) {
           <form onSubmit={handleSubmit} className="form">
             <label>
               Matricula
-              <input value={form.matricula} onChange={(e) => setForm((prev) => ({ ...prev, matricula: e.target.value }))} />
+              <input
+                value={form.matricula}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, matricula: e.target.value }))
+                  if (formError) setFormError('')
+                }}
+              />
             </label>
             <label>
               Nombre
-              <input value={form.nombre} onChange={(e) => setForm((prev) => ({ ...prev, nombre: e.target.value }))} required />
+              <input
+                value={form.nombre}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, nombre: e.target.value }))
+                  if (formError) setFormError('')
+                }}
+                required
+              />
             </label>
             <label>
               Correo
-              <input type="email" value={form.correo} onChange={(e) => setForm((prev) => ({ ...prev, correo: e.target.value }))} required />
+              <input
+                type="email"
+                value={form.correo}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, correo: e.target.value }))
+                  if (formError) setFormError('')
+                }}
+                required
+              />
             </label>
             <label>
               Password {editingId ? '(opcional)' : ''}
-              <input type="password" value={form.password} onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))} required={!editingId} />
+              <input
+                type="password"
+                value={form.password}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, password: e.target.value }))
+                  if (formError) setFormError('')
+                }}
+                required={!editingId}
+              />
             </label>
             <label>
               Rol
-              <select value={form.role} onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))}>
+              <select
+                value={form.role}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, role: e.target.value }))
+                  if (formError) setFormError('')
+                }}
+              >
                 <option value="DOCENTE">DOCENTE</option>
                 <option value="ADMIN">ADMIN</option>
               </select>
             </label>
               <label>
                 Turno
-                <select value={form.turno} onChange={(e) => setForm((prev) => ({ ...prev, turno: e.target.value }))}>
+                <select
+                  value={form.turno}
+                  onChange={(e) => {
+                    setForm((prev) => ({ ...prev, turno: e.target.value }))
+                    if (formError) setFormError('')
+                  }}
+                >
                   {TURNOS_DOCENTE.map((turno) => (
                     <option key={turno.value} value={turno.value}>
                       {turno.label}
@@ -118,11 +165,22 @@ function DocentesPage({ isAdmin, docentes, onCreate, onUpdate, onDelete }) {
               </label>
             <label>
               Estado
-              <select value={form.estado ? 'true' : 'false'} onChange={(e) => setForm((prev) => ({ ...prev, estado: e.target.value === 'true' }))}>
+              <select
+                value={form.estado ? 'true' : 'false'}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, estado: e.target.value === 'true' }))
+                  if (formError) setFormError('')
+                }}
+              >
                 <option value="true">Activo</option>
                 <option value="false">Inactivo</option>
               </select>
             </label>
+            {formError && (
+              <div className="feedback" style={{ gridColumn: '1 / -1' }}>
+                <p className="feedback__error">{formError}</p>
+              </div>
+            )}
             <button type="submit" disabled={busy}>{busy ? 'Guardando...' : editingId ? 'Actualizar' : 'Crear docente'}</button>
             {editingId && (
               <button type="button" className="button-alt" onClick={resetForm} disabled={busy}>

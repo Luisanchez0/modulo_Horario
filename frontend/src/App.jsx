@@ -11,6 +11,7 @@ import AulasPage from './pages/AulasPage'
 import PeriodosPage from './pages/PeriodosPage'
 import HorariosPage from './pages/HorariosPage'
 import AccessDeniedPage from './pages/AccessDeniedPage'
+import ActivationPage from './pages/ActivationPage'
 import { ADMIN_MODULE_LINKS, DOCENTE_MODULE_LINKS } from './constants/modules'
 
 function decodeJwtPayload(token) {
@@ -46,6 +47,76 @@ function describirTurno(turno) {
   return '07:00 a 14:00 o 15:00 a 22:00'
 }
 
+function normalizarTexto(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function parseDateOnly(value) {
+  const date = new Date(`${value || ''}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function rangosSolapan(inicioA, finA, inicioB, finB) {
+  if (!inicioA || !finA || !inicioB || !finB) return false
+  return inicioA <= finB && inicioB <= finA
+}
+
+function extraerMensajeError(error) {
+  if (!error) return ''
+  if (typeof error === 'string') {
+    try {
+      const parsed = JSON.parse(error)
+      if (parsed?.detail) {
+        return typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail)
+      }
+    } catch {
+      return error
+    }
+    return error
+  }
+
+  if (error.detail) {
+    return typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail)
+  }
+
+  if (error.message) {
+    return extraerMensajeError(error.message)
+  }
+
+  return String(error)
+}
+
+function mapApiError(error) {
+  const raw = extraerMensajeError(error)
+  const msg = raw.toLowerCase()
+
+  if (msg.includes('matricula') && (msg.includes('duplic') || msg.includes('existe') || msg.includes('unique'))) {
+    return 'No se puede repetir la misma matricula.'
+  }
+
+  if (msg.includes('aula') && (msg.includes('duplic') || msg.includes('existe') || msg.includes('unique'))) {
+    return 'El aula ya existe.'
+  }
+
+  if (msg.includes('periodo') && (msg.includes('solap') || msg.includes('traslap') || msg.includes('overlap'))) {
+    return 'El rango del periodo se sobrepone con un periodo existente.'
+  }
+
+  if (msg.includes('periodo') && msg.includes('nombre') && (msg.includes('duplic') || msg.includes('existe') || msg.includes('unique'))) {
+    return 'Ya existe un periodo con ese nombre.'
+  }
+
+  if (msg.includes('fecha') && (msg.includes('inicio') || msg.includes('fin')) && (msg.includes('inval') || msg.includes('rango') || msg.includes('formato'))) {
+    return 'Las fechas del periodo no son validas.'
+  }
+
+  if (msg.includes('fecha') && msg.includes('inicio') && msg.includes('fin') && (msg.includes('mayor') || msg.includes('after'))) {
+    return 'La fecha de inicio no puede ser mayor a la fecha fin.'
+  }
+
+  return raw || 'Ocurrio un error inesperado.'
+}
+
 
 
 
@@ -55,13 +126,17 @@ const params = new URLSearchParams(window.location.search);
 const tokenUrl = params.get("token");
 const rolUrl = params.get("rol");
 const rfcUrl = params.get("rfc");
+const isSsoPath = window.location.pathname === "/login";
 
-if (tokenUrl) {
+if (tokenUrl && isSsoPath) {
   localStorage.setItem("token", tokenUrl);
   if (rolUrl) localStorage.setItem("userRole", rolUrl);
   if (rfcUrl) localStorage.setItem("userRFC", rfcUrl);
   window.history.replaceState({}, "", window.location.pathname);
 }
+
+
+
 
 
 
@@ -85,7 +160,7 @@ function App() {
   const [authToken, setAuthToken] = useState(() => localStorage.getItem(API.jwtStorageKey) || '')
   const [loginForm, setLoginForm] = useState({
     correo: 'admin@example.com',
-    password: '1234',
+    password: 'adminpass',
   })
   const [registerForm, setRegisterForm] = useState({
     nombre: '',
@@ -334,6 +409,13 @@ function App() {
     }
   }
 
+  const activarCuenta = useCallback(async (token, password) => {
+    await fetchJson(`${API.usuarios}/auth/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    })
+  }, [API, fetchJson])
+
   function cerrarSesion() {
     localStorage.removeItem(API.jwtStorageKey)
     setAuthToken('')
@@ -356,6 +438,53 @@ function App() {
     setMensaje('')
     setError('')
 
+    const nombrePeriodo = normalizarTexto(periodoForm.nombre)
+    if (!nombrePeriodo) {
+      const msg = 'El nombre del periodo es obligatorio.'
+      setError(msg)
+      throw new Error(msg)
+    }
+
+    const fechaInicio = parseDateOnly(periodoForm.fecha_inicio)
+    const fechaFin = parseDateOnly(periodoForm.fecha_fin)
+    if (!fechaInicio || !fechaFin) {
+      const msg = 'Las fechas del periodo son invalidas.'
+      setError(msg)
+      throw new Error(msg)
+    }
+    if (fechaInicio > fechaFin) {
+      const msg = 'La fecha de inicio no puede ser mayor a la fecha fin.'
+      setError(msg)
+      throw new Error(msg)
+    }
+
+    const nombreDuplicado = periodos.some(
+      (periodo) => normalizarTexto(periodo.nombre) === nombrePeriodo,
+    )
+    if (nombreDuplicado) {
+      const msg = 'Ya existe un periodo con ese nombre.'
+      setError(msg)
+      throw new Error(msg)
+    }
+
+    const hayTraslape = periodos.some((periodo) => {
+      const inicioExistente = parseDateOnly(periodo.fecha_inicio)
+      const finExistente = parseDateOnly(periodo.fecha_fin)
+      const mismoTipo = String(periodo.tipo || '').toUpperCase() === String(periodoForm.tipo || '').toUpperCase()
+      if (!mismoTipo) return false
+
+      const mismoInicio = inicioExistente && fechaInicio && inicioExistente.getTime() === fechaInicio.getTime()
+      const finDiferente = finExistente && fechaFin && finExistente.getTime() !== fechaFin.getTime()
+      if (mismoInicio && finDiferente) return false
+
+      return rangosSolapan(fechaInicio, fechaFin, inicioExistente, finExistente)
+    })
+    if (hayTraslape) {
+      const msg = 'El rango del periodo se sobrepone con otro del mismo tipo (SEMESTRE o CUATRIMESTRE).'
+      setError(msg)
+      throw new Error(msg)
+    }
+
     try {
       await fetchJson(`${API.horario}/periodos`, {
         method: 'POST',
@@ -369,7 +498,9 @@ function App() {
       setMensaje('Periodo creado correctamente.')
       await cargarDatos()
     } catch (err) {
-      setError(err.message)
+      const mapped = mapApiError(err)
+      setError(mapped)
+      throw new Error(mapped)
     }
   }
 
@@ -455,19 +586,77 @@ function App() {
   }
 
   async function crearMateria(payload) {
-    await fetchJson(`${API.materias}/api/v1/materias/`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }, true)
-    await cargarDatos()
+    const nombre = normalizarTexto(payload.nombre)
+    const codigo = normalizarTexto(payload.codigo)
+    if (!nombre) {
+      const msg = 'El nombre de la materia es obligatorio.'
+      setError(msg)
+      throw new Error(msg)
+    }
+    if (!codigo) {
+      const msg = 'El codigo de la materia es obligatorio.'
+      setError(msg)
+      throw new Error(msg)
+    }
+
+    const materiaDuplicada = materias.find(
+      (materia) => normalizarTexto(materia.nombre) === nombre || normalizarTexto(materia.codigo) === codigo,
+    )
+    if (materiaDuplicada) {
+      const msg = 'No se puede repetir la misma materia o codigo.'
+      setError(msg)
+      throw new Error(msg)
+    }
+
+    try {
+      await fetchJson(`${API.materias}/api/v1/materias/`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }, true)
+      await cargarDatos()
+    } catch (err) {
+      const mapped = mapApiError(err)
+      setError(mapped)
+      throw new Error(mapped)
+    }
   }
 
   async function actualizarMateria(materiaId, payload) {
-    await fetchJson(`${API.materias}/api/v1/materias/${materiaId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }, true)
-    await cargarDatos()
+    const nombre = normalizarTexto(payload.nombre)
+    const codigo = normalizarTexto(payload.codigo)
+    if (!nombre) {
+      const msg = 'El nombre de la materia es obligatorio.'
+      setError(msg)
+      throw new Error(msg)
+    }
+    if (!codigo) {
+      const msg = 'El codigo de la materia es obligatorio.'
+      setError(msg)
+      throw new Error(msg)
+    }
+
+    const materiaDuplicada = materias.find(
+      (materia) =>
+        (normalizarTexto(materia.nombre) === nombre || normalizarTexto(materia.codigo) === codigo) &&
+        Number(materia.id) !== Number(materiaId),
+    )
+    if (materiaDuplicada) {
+      const msg = 'No se puede repetir la misma materia o codigo.'
+      setError(msg)
+      throw new Error(msg)
+    }
+
+    try {
+      await fetchJson(`${API.materias}/api/v1/materias/${materiaId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }, true)
+      await cargarDatos()
+    } catch (err) {
+      const mapped = mapApiError(err)
+      setError(mapped)
+      throw new Error(mapped)
+    }
   }
 
   async function eliminarMateria(materiaId) {
@@ -486,19 +675,57 @@ function App() {
   }
 
   async function crearAula(payload) {
-    await fetchJson(`${API.aulas}/aulas`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }, true)
-    await cargarDatos()
+    const nombre = normalizarTexto(payload.nombre)
+    if (!nombre) {
+      const msg = 'El nombre del aula es obligatorio.'
+      setError(msg)
+      throw new Error(msg)
+    }
+    const aulaDuplicada = aulas.find((aula) => normalizarTexto(aula.nombre) === nombre)
+    if (aulaDuplicada) {
+      const msg = `El aula "${payload.nombre}" ya existe.`
+      setError(msg)
+      throw new Error(msg)
+    }
+    try {
+      await fetchJson(`${API.aulas}/aulas`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }, true)
+      await cargarDatos()
+    } catch (err) {
+      const mapped = mapApiError(err)
+      setError(mapped)
+      throw new Error(mapped)
+    }
   }
 
   async function actualizarAula(aulaId, payload) {
-    await fetchJson(`${API.aulas}/aulas/${aulaId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }, true)
-    await cargarDatos()
+    const nombre = normalizarTexto(payload.nombre)
+    if (!nombre) {
+      const msg = 'El nombre del aula es obligatorio.'
+      setError(msg)
+      throw new Error(msg)
+    }
+    const aulaDuplicada = aulas.find(
+      (aula) => normalizarTexto(aula.nombre) === nombre && Number(aula.id) !== Number(aulaId),
+    )
+    if (aulaDuplicada) {
+      const msg = `El aula "${payload.nombre}" ya existe.`
+      setError(msg)
+      throw new Error(msg)
+    }
+    try {
+      await fetchJson(`${API.aulas}/aulas/${aulaId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }, true)
+      await cargarDatos()
+    } catch (err) {
+      const mapped = mapApiError(err)
+      setError(mapped)
+      throw new Error(mapped)
+    }
   }
 
   async function eliminarAula(aulaId) {
@@ -517,19 +744,53 @@ function App() {
   }
 
   async function crearDocente(payload) {
-    await fetchJson(`${API.usuarios}/docentes`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }, true)
-    await cargarDatos()
+    if (payload.matricula) {
+      const matricula = normalizarTexto(payload.matricula)
+      const docenteDuplicado = docentes.find(
+        (docente) => normalizarTexto(docente.matricula) === matricula,
+      )
+      if (docenteDuplicado) {
+        const msg = 'No se puede repetir la misma matricula.'
+        setError(msg)
+        throw new Error(msg)
+      }
+    }
+    try {
+      await fetchJson(`${API.usuarios}/docentes`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }, true)
+      await cargarDatos()
+    } catch (err) {
+      const mapped = mapApiError(err)
+      setError(mapped)
+      throw new Error(mapped)
+    }
   }
 
   async function actualizarDocente(docenteId, payload) {
-    await fetchJson(`${API.usuarios}/docentes/${docenteId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }, true)
-    await cargarDatos()
+    if (payload.matricula) {
+      const matricula = normalizarTexto(payload.matricula)
+      const docenteDuplicado = docentes.find(
+        (docente) => normalizarTexto(docente.matricula) === matricula && Number(docente.id) !== Number(docenteId),
+      )
+      if (docenteDuplicado) {
+        const msg = 'No se puede repetir la misma matricula.'
+        setError(msg)
+        throw new Error(msg)
+      }
+    }
+    try {
+      await fetchJson(`${API.usuarios}/docentes/${docenteId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }, true)
+      await cargarDatos()
+    } catch (err) {
+      const mapped = mapApiError(err)
+      setError(mapped)
+      throw new Error(mapped)
+    }
   }
 
   async function eliminarDocente(docenteId) {
@@ -623,6 +884,12 @@ function App() {
             />
           )
         }
+      />
+      <Route
+        path="/activar"
+        element={(
+          <ActivationPage activarCuenta={activarCuenta} />
+        )}
       />
 
       <Route element={<ProtectedRoute isAuthenticated={isAuthenticated} />}>

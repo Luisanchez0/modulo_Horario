@@ -150,6 +150,29 @@ class GenerarHorariosTest(unittest.TestCase):
         self.assertEqual(sin_asignar, [1])
         self.assertTrue(any("No se pudieron asignar" in mensaje for mensaje in mensajes))
 
+    def test_respeta_turno_matutino_de_materia(self):
+        use_case = GenerarHorarios(
+            FakeHorarioRepository(),
+            FakeDisponibilidadRepository(),
+            FakePeriodoRepository(),
+            FakeCatalogClient(materias=[{"id": 1, "nombre": "Materia 1", "turno": "MATUTINO"}]),
+        )
+
+        creados, sin_asignar, mensajes = use_case.ejecutar(
+            periodo_id=1,
+            duracion_minutos=60,
+            hora_inicio_jornada="15:00",
+            hora_fin_jornada="18:00",
+            dias=["LUNES"],
+            docente_ids=[1],
+            materia_ids=[1],
+            aula_ids=[1],
+        )
+
+        self.assertEqual(creados, [])
+        self.assertEqual(sin_asignar, [1])
+        self.assertTrue(any("No se pudieron asignar" in mensaje for mensaje in mensajes))
+
 
 class CrearDisponibilidadTest(unittest.TestCase):
     def test_rechaza_disponibilidad_traslapada(self):

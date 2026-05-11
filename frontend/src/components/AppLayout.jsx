@@ -23,20 +23,38 @@ function AppLayout({
       const showTimer = setTimeout(() => {
         setShowToast(true)
       }, 0)
+
       const t = setTimeout(() => {
         setShowToast(false)
-        if (typeof clearMensaje === 'function') clearMensaje()
+
+        if (typeof clearMensaje === 'function') {
+          clearMensaje()
+        }
       }, 4000)
+
       return () => {
         clearTimeout(showTimer)
         clearTimeout(t)
       }
     }
+
     return undefined
   }, [mensaje, clearMensaje])
-  const rolSesion = (usuarioSesion?.rol || 'DOCENTE').toUpperCase()
-  const nombreSesion = usuarioSesion?.nombre || usuarioSesion?.sub || usuarioSesion?.correo || 'Usuario SIAE'
-  const claveSesion = usuarioSesion?.matricula || usuarioSesion?.id || rolSesion
+
+  const rolSesion = (usuarioSesion?.role || 'DOCENTE').toUpperCase()
+
+  //console.log('usuarioSesion:', usuarioSesion)
+
+  // Nombre del usuario
+  const nombreSesion =
+    usuarioSesion?.nombre ||
+    usuarioSesion?.correo ||
+    'Usuario SIAE'
+
+  // Mostrar matrícula en lugar del id
+  const claveSesion =
+    usuarioSesion?.matricula ||
+    rolSesion
 
   return (
     <main className="edu-app">
@@ -53,7 +71,9 @@ function AppLayout({
             <small>{claveSesion}</small>
           </div>
 
-          <p className="sidebar__section">Menu {rolSesion === 'ADMIN' ? 'Administrador' : 'Docente'}</p>
+          <p className="sidebar__section">
+            Menu {rolSesion === 'ADMIN' ? 'Administrador' : 'Docente'}
+          </p>
 
           <nav className="module-nav" aria-label="Navegacion por modulos">
             {moduleLinks.map((module) => (
@@ -65,12 +85,17 @@ function AppLayout({
                 <span className="module-nav__icon" aria-hidden="true">
                   {module.icon}
                 </span>
+
                 {module.label}
               </NavLink>
             ))}
           </nav>
 
-          <button type="button" className="sidebar__logout" onClick={cerrarSesion}>
+          <button
+            type="button"
+            className="sidebar__logout"
+            onClick={cerrarSesion}
+          >
             <span aria-hidden="true">←</span>
             Cerrar Sesion
           </button>
@@ -79,22 +104,41 @@ function AppLayout({
         <section className="content">
           <div className="content__bar">
             <div>
-              <p className="breadcrumb">SIAE UNACH - {dashboardSubtitle}</p>
+              <p className="breadcrumb">
+                SIAE UNACH - {dashboardSubtitle}
+              </p>
+
               <h1>{dashboardTitle}</h1>
             </div>
+
             <div className="content__actions">
-              <button type="button" onClick={cargarDatos} disabled={loading}>
+              <button
+                type="button"
+                onClick={cargarDatos}
+                disabled={loading}
+              >
                 {loading ? 'Actualizando...' : 'Actualizar'}
               </button>
             </div>
           </div>
 
-          
-
           {error && (
-            <Modal title="Se produjo un error" titleId="error-modal-title" onClose={clearError} actions={<>
-              <button className="btn btn--primary" type="button" onClick={clearError}>Entendido</button>
-            </>}>
+            <Modal
+              title="Se produjo un error"
+              titleId="error-modal-title"
+              onClose={clearError}
+              actions={
+                <>
+                  <button
+                    className="btn btn--primary"
+                    type="button"
+                    onClick={clearError}
+                  >
+                    Entendido
+                  </button>
+                </>
+              }
+            >
               <p>{error}</p>
             </Modal>
           )}
@@ -102,9 +146,23 @@ function AppLayout({
           {children}
         </section>
       </div>
+
       {showToast && mensaje && (
-        <div className="toast-container" role="status" aria-live="polite">
-          <div className="toast toast--success" onClick={() => { setShowToast(false); clearMensaje && clearMensaje(); }}>
+        <div
+          className="toast-container"
+          role="status"
+          aria-live="polite"
+        >
+          <div
+            className="toast toast--success"
+            onClick={() => {
+              setShowToast(false)
+
+              if (clearMensaje) {
+                clearMensaje()
+              }
+            }}
+          >
             {mensaje}
           </div>
         </div>

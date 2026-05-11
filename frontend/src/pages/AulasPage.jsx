@@ -8,20 +8,24 @@ function AulasPage({ isAdmin, aulas, onCreate, onUpdate, onDelete }) {
   const [editingId, setEditingId] = useState(null)
   const [busy, setBusy] = useState(false)
   const [aulaPendienteEliminar, setAulaPendienteEliminar] = useState(null)
+  const [formError, setFormError] = useState('')
 
   function resetForm() {
     setForm(emptyAula)
     setEditingId(null)
+    setFormError('')
   }
 
   function startEdit(aula) {
     setEditingId(aula.id)
     setForm({ nombre: aula.nombre || '', capacidad: String(aula.capacidad ?? 0) })
+    setFormError('')
   }
 
   async function handleSubmit(event) {
     event.preventDefault()
     setBusy(true)
+    setFormError('')
 
     try {
       const payload = {
@@ -36,6 +40,8 @@ function AulasPage({ isAdmin, aulas, onCreate, onUpdate, onDelete }) {
       }
 
       resetForm()
+    } catch (error) {
+      setFormError(error.message || 'No se pudo guardar el aula.')
     } finally {
       setBusy(false)
     }
@@ -60,12 +66,33 @@ function AulasPage({ isAdmin, aulas, onCreate, onUpdate, onDelete }) {
           <form onSubmit={handleSubmit} className="form">
             <label>
               Nombre
-              <input value={form.nombre} onChange={(e) => setForm((prev) => ({ ...prev, nombre: e.target.value }))} required />
+              <input
+                value={form.nombre}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, nombre: e.target.value }))
+                  if (formError) setFormError('')
+                }}
+                required
+              />
             </label>
             <label>
               Capacidad
-              <input type="number" min="1" value={form.capacidad} onChange={(e) => setForm((prev) => ({ ...prev, capacidad: e.target.value }))} required />
+              <input
+                type="number"
+                min="1"
+                value={form.capacidad}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, capacidad: e.target.value }))
+                  if (formError) setFormError('')
+                }}
+                required
+              />
             </label>
+            {formError && (
+              <div className="feedback" style={{ gridColumn: '1 / -1' }}>
+                <p className="feedback__error">{formError}</p>
+              </div>
+            )}
             <button type="submit" disabled={busy}>{busy ? 'Guardando...' : editingId ? 'Actualizar' : 'Crear aula'}</button>
             {editingId && (
               <button type="button" className="button-alt" onClick={resetForm} disabled={busy}>

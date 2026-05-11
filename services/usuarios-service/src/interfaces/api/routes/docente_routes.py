@@ -7,6 +7,7 @@ from src.infrastructure.repositories.docente_repository_impl import DocenteRepos
 from src.application.use_cases.create_docente import CreateDocente
 from src.infrastructure.security.hash import hash as hash_password
 from src.infrastructure.security.jwt import verify_token
+from src.application.services.activation_service import send_activation_for_docente
 from src.interfaces.api.schemas.docente_schema import DocenteCreate, DocenteResponse, DocenteUpdate
 
 router = APIRouter()
@@ -121,7 +122,9 @@ def create_docente_admin(
 
     use_case = CreateDocente(repo, hash_password)
     try:
-        return use_case.execute(data.model_dump())
+        docente = use_case.execute(data.model_dump())
+        send_activation_for_docente(docente)
+        return docente
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 

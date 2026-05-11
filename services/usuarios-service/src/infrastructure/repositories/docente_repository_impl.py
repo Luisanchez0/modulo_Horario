@@ -26,6 +26,9 @@ class DocenteRepositoryImpl(DocenteRepository):
         with SessionLocal() as db:
             return db.query(DocenteModel).filter_by(correo=correo).first()
 
+    def obtener_por_correo(self, correo):
+        return self.find_by_email(correo)
+
     def find_by_id(self, docente_id):
         with SessionLocal() as db:
             return db.query(DocenteModel).filter_by(id=docente_id).first()

@@ -135,6 +135,9 @@ class GenerarHorarios:
                             if not self._es_turno_compatible(docente.turno, candidato.hora_inicio, candidato.hora_fin):
                                 continue
 
+                            if not self._es_turno_compatible(materia.turno, candidato.hora_inicio, candidato.hora_fin):
+                                continue
+
                             if self._tiene_conflicto(candidato, existentes + creados):
                                 continue
                             tuvo_slot_sin_conflicto = True

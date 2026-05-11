@@ -35,12 +35,21 @@ services:
   usuarios-service:
     build:
       context: ./usuarios-service
+    env_file:
+      - .env
     environment:
       DATABASE_URL: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-change_me_mysql_root_password}@mysql/docentes_db
       JWT_SECRET: ${JWT_SECRET:-change_me_jwt_secret}
       ADMIN_CREATION_KEY: ${ADMIN_CREATION_KEY:-change_me_admin_creation_key}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-change_me_internal_api_key}
       CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:5173,http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004}
+      FRONTEND_URL: ${FRONTEND_URL:-https://modulo-horario.vercel.app}
+      ACTIVATION_TOKEN_EXPIRE_MINUTES: ${ACTIVATION_TOKEN_EXPIRE_MINUTES:-120}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       APP_PORT: 8001
     ports:
       - "8001:8001"

@@ -87,6 +87,144 @@ USER appuser
 
 ---
 
+## 🚀 DESPLIEGUE RÁPIDO EN EC2 + DOCKER COMPOSE
+
+Este es el camino más corto para poner el proyecto en AWS sin rediseñarlo. La idea es levantar todo en una sola instancia EC2: frontend, microservicios, MySQL y PostgreSQL.
+
+### 1. Arquitectura mínima
+
+- 1 EC2 con Ubuntu 22.04
+- 1 Elastic IP para tener una IP fija
+- Docker + Docker Compose instalados en la instancia
+- 1 dominio opcional apuntando a la IP pública o, mejor, a un reverse proxy con Nginx
+- 1 volumen EBS para persistir datos de Docker
+
+### 2. Recursos AWS a crear
+
+1. Crear una instancia EC2 tipo `t3.medium` como mínimo; `t3.large` si quieres más margen.
+2. Asociar una Elastic IP.
+3. Abrir en el Security Group solo estos puertos:
+  - `22` para SSH, restringido a tu IP
+  - `80` para HTTP
+  - `443` para HTTPS
+  - Evitar exponer `8001-8004`, `3307` y `5433` al público
+4. Crear o montar un volumen EBS si quieres conservar datos de forma persistente.
+
+### 3. Preparar la instancia
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y ca-certificates curl git unzip
+
+# Instalar Docker
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Instalar Docker Compose plugin
+docker compose version
+```
+
+### 4. Subir el código
+
+```bash
+git clone <TU_REPO>
+cd Microservicio_Horario/services
+```
+
+Si no vas a usar Git en la EC2, también puedes subir el proyecto con `scp` o con un pipeline de CI/CD.
+
+### 5. Configurar variables de entorno
+
+En `services/.env` usa secretos reales, no valores de ejemplo:
+
+```bash
+MYSQL_ROOT_PASSWORD=<password_fuerte>
+MYSQL_DATABASE=docentes_db
+
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=<password_fuerte>
+POSTGRES_DB=postgres
+
+JWT_SECRET=<secret_largo>
+ADMIN_CREATION_KEY=<secret_largo>
+INTERNAL_API_KEY=<secret_largo>
+
+CORS_ALLOW_ORIGINS=http://<IP_O_DOMINIO_FRONTEND>,http://localhost:5173
+```
+
+### 6. Levantar el stack
+
+```bash
+docker compose up -d --build
+docker compose ps
+```
+
+### 7. Verificación básica
+
+```bash
+curl http://localhost:8001/health
+curl http://localhost:8002/health
+curl http://localhost:8003/health
+curl http://localhost:8004/health
+```
+
+Si todo responde bien, ya puedes abrir el frontend desde el navegador usando el dominio o la IP pública de la EC2.
+
+### 8. Frontend en producción
+
+Antes del build, apunta las variables `VITE_*` al backend público:
+
+```bash
+cd ../frontend
+export VITE_USUARIOS_API_URL=http://<IP_O_DOMINIO>:8001
+export VITE_MATERIAS_API_URL=http://<IP_O_DOMINIO>:8002
+export VITE_AULAS_API_URL=http://<IP_O_DOMINIO>:8003
+export VITE_HORARIO_API_URL=http://<IP_O_DOMINIO>:8004
+npm install
+npm run build
+```
+
+Si quieres servir el frontend desde la misma EC2, usa Nginx para publicar `dist/` y hacer proxy hacia los servicios internos.
+
+### 9. Reverse proxy recomendado
+
+Lo más limpio es poner Nginx en la misma EC2 y dejarlo escuchando en `80/443`.
+
+- `/` sirve el frontend
+- `/auth`, `/docentes`, `/api/v1/materias`, `/aulas`, `/horarios` hacen proxy a los microservicios
+- `80` redirige a `443`
+- `443` usa un certificado de Let's Encrypt
+
+### 10. Operación diaria
+
+```bash
+# Ver logs
+docker compose logs -f
+
+# Reiniciar un servicio
+docker compose restart horario-service
+
+# Actualizar despliegue
+git pull
+docker compose up -d --build
+
+# Detener todo
+docker compose down
+```
+
+### 11. Checklist final
+
+- [ ] EC2 con IP fija
+- [ ] Docker instalado
+- [ ] `.env` con secretos reales
+- [ ] Puertos públicos limitados a `80/443`
+- [ ] Backend levantado con `docker compose up -d --build`
+- [ ] Frontend compilado con URLs correctas
+- [ ] HTTPS activo con Nginx y certificado válido
+
+---
+
 ## 🌐 NGINX REVERSE PROXY + SSL
 
 ### Setup

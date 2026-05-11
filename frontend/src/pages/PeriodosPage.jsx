@@ -12,6 +12,7 @@ function PeriodosPage({
   const [modalOpen, setModalOpen] = useState(false)
   const [modalDependencias, setModalDependencias] = useState([])
   const [errorModalMessage, setErrorModalMessage] = useState('')
+  const [formError, setFormError] = useState('')
 
   const mostrarErrorModal = (message) => {
     setErrorModalMessage(message || 'Ocurrio un error inesperado.')
@@ -21,6 +22,15 @@ function PeriodosPage({
     setErrorModalMessage('')
   }
 
+  const handleCrearPeriodo = async (event) => {
+    setFormError('')
+    try {
+      await crearPeriodo(event)
+    } catch (error) {
+      setFormError(error.message || 'No se pudo guardar el periodo.')
+    }
+  }
+
   return (
     <section className="grid">
       <details className="card collapsible-card" open>
@@ -28,12 +38,15 @@ function PeriodosPage({
           <h3>Crear Periodo</h3>
           <span aria-hidden="true">+</span>
         </summary>
-        <form onSubmit={crearPeriodo} className="form">
+        <form onSubmit={handleCrearPeriodo} className="form">
           <label>
             Nombre
             <input
               value={periodoForm.nombre}
-              onChange={(e) => setPeriodoForm((prev) => ({ ...prev, nombre: e.target.value }))}
+              onChange={(e) => {
+                setPeriodoForm((prev) => ({ ...prev, nombre: e.target.value }))
+                if (formError) setFormError('')
+              }}
               required
             />
           </label>
@@ -41,7 +54,10 @@ function PeriodosPage({
             Tipo
             <select
               value={periodoForm.tipo}
-              onChange={(e) => setPeriodoForm((prev) => ({ ...prev, tipo: e.target.value }))}
+              onChange={(e) => {
+                setPeriodoForm((prev) => ({ ...prev, tipo: e.target.value }))
+                if (formError) setFormError('')
+              }}
             >
               <option value="SEMESTRE">SEMESTRE</option>
               <option value="CUATRIMESTRE">CUATRIMESTRE</option>
@@ -52,9 +68,10 @@ function PeriodosPage({
             <input
               type="date"
               value={periodoForm.fecha_inicio}
-              onChange={(e) =>
+              onChange={(e) => {
                 setPeriodoForm((prev) => ({ ...prev, fecha_inicio: e.target.value }))
-              }
+                if (formError) setFormError('')
+              }}
               required
             />
           </label>
@@ -63,10 +80,18 @@ function PeriodosPage({
             <input
               type="date"
               value={periodoForm.fecha_fin}
-              onChange={(e) => setPeriodoForm((prev) => ({ ...prev, fecha_fin: e.target.value }))}
+              onChange={(e) => {
+                setPeriodoForm((prev) => ({ ...prev, fecha_fin: e.target.value }))
+                if (formError) setFormError('')
+              }}
               required
             />
           </label>
+          {formError && (
+            <div className="feedback" style={{ gridColumn: '1 / -1' }}>
+              <p className="feedback__error">{formError}</p>
+            </div>
+          )}
           <button type="submit">Guardar periodo</button>
         </form>
       </details>

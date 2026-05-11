@@ -5,12 +5,21 @@ class LoginDocente:
         self.jwt_service = jwt_service
 
     def execute(self, correo, password):
-        docente = self.repository.find_by_email(correo)
+        if hasattr(self.repository, "obtener_por_correo"):
+            docente = self.repository.obtener_por_correo(correo)
+        else:
+            docente = self.repository.find_by_email(correo)
 
         if not docente:
             raise ValueError("Usuario no encontrado")
 
-        if not self.verify_service(password, docente.password):
+        password_hash = None
+        for attr in ("password", "contrasena_hash", "contrase\u00f1a_hash"):
+            candidate = getattr(docente, attr, None)
+            if isinstance(candidate, (str, bytes)) and candidate:
+                password_hash = candidate
+                break
+        if not password_hash or not self.verify_service(password, password_hash):
             raise ValueError("Credenciales incorrectas")
 
         # Normalizar rol antes de incluir en JWT

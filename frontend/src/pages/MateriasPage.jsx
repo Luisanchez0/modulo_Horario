@@ -14,10 +14,32 @@ function MateriasPage({ isAdmin, materias, onCreate, onUpdate, onDelete }) {
   const [editingId, setEditingId] = useState(null)
   const [busy, setBusy] = useState(false)
   const [materiaPendienteEliminar, setMateriaPendienteEliminar] = useState(null)
+  const [formError, setFormError] = useState('')
+  const [sortBy, setSortBy] = useState('nombre')
+  const [sortDir, setSortDir] = useState('asc')
+
+  const materiasOrdenadas = [...materias].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1
+
+    if (sortBy === 'creditos') {
+      return (Number(a.creditos) - Number(b.creditos)) * dir
+    }
+
+    if (sortBy === 'turno') {
+      const turnoA = String(a.turno || 'AMBOS')
+      const turnoB = String(b.turno || 'AMBOS')
+      return turnoA.localeCompare(turnoB, 'es', { sensitivity: 'base' }) * dir
+    }
+
+    const nombreA = String(a.nombre || '')
+    const nombreB = String(b.nombre || '')
+    return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base' }) * dir
+  })
 
   function resetForm() {
     setForm(emptyMateria)
     setEditingId(null)
+    setFormError('')
   }
 
   function startEdit(materia) {
@@ -29,11 +51,13 @@ function MateriasPage({ isAdmin, materias, onCreate, onUpdate, onDelete }) {
       turno: materia.turno || 'AMBOS',
       descripcion: materia.descripcion || '',
     })
+    setFormError('')
   }
 
   async function handleSubmit(event) {
     event.preventDefault()
     setBusy(true)
+    setFormError('')
 
     try {
       const payload = {
@@ -51,6 +75,8 @@ function MateriasPage({ isAdmin, materias, onCreate, onUpdate, onDelete }) {
       }
 
       resetForm()
+    } catch (error) {
+      setFormError(error.message || 'No se pudo guardar la materia.')
     } finally {
       setBusy(false)
     }
@@ -75,19 +101,48 @@ function MateriasPage({ isAdmin, materias, onCreate, onUpdate, onDelete }) {
           <form onSubmit={handleSubmit} className="form">
             <label>
               Nombre
-              <input value={form.nombre} onChange={(e) => setForm((prev) => ({ ...prev, nombre: e.target.value }))} required />
+              <input
+                value={form.nombre}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, nombre: e.target.value }))
+                  if (formError) setFormError('')
+                }}
+                required
+              />
             </label>
             <label>
               Codigo
-              <input value={form.codigo} onChange={(e) => setForm((prev) => ({ ...prev, codigo: e.target.value }))} required />
+              <input
+                value={form.codigo}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, codigo: e.target.value }))
+                  if (formError) setFormError('')
+                }}
+                required
+              />
             </label>
             <label>
               Creditos
-              <input type="number" min="1" value={form.creditos} onChange={(e) => setForm((prev) => ({ ...prev, creditos: e.target.value }))} required />
+              <input
+                type="number"
+                min="1"
+                value={form.creditos}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, creditos: e.target.value }))
+                  if (formError) setFormError('')
+                }}
+                required
+              />
             </label>
             <label>
               Turno
-              <select value={form.turno} onChange={(e) => setForm((prev) => ({ ...prev, turno: e.target.value }))}>
+              <select
+                value={form.turno}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, turno: e.target.value }))
+                  if (formError) setFormError('')
+                }}
+              >
                 {TURNOS_MATERIA.map((turno) => (
                   <option key={turno.value} value={turno.value}>
                     {turno.label}
@@ -97,8 +152,19 @@ function MateriasPage({ isAdmin, materias, onCreate, onUpdate, onDelete }) {
             </label>
             <label>
               Descripcion
-              <input value={form.descripcion} onChange={(e) => setForm((prev) => ({ ...prev, descripcion: e.target.value }))} />
+              <input
+                value={form.descripcion}
+                onChange={(e) => {
+                  setForm((prev) => ({ ...prev, descripcion: e.target.value }))
+                  if (formError) setFormError('')
+                }}
+              />
             </label>
+            {formError && (
+              <div className="feedback" style={{ gridColumn: '1 / -1' }}>
+                <p className="feedback__error">{formError}</p>
+              </div>
+            )}
             <button type="submit" disabled={busy}>{busy ? 'Guardando...' : editingId ? 'Actualizar' : 'Crear materia'}</button>
             {editingId && (
               <button type="button" className="button-alt" onClick={resetForm} disabled={busy}>
@@ -111,6 +177,25 @@ function MateriasPage({ isAdmin, materias, onCreate, onUpdate, onDelete }) {
 
       <article className="card">
         <h3>Materias</h3>
+        <div className="filter-toolbar">
+          <div className="filter-row">
+            <label>
+              Ordenar por
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="nombre">Nombre</option>
+                <option value="turno">Turno</option>
+                <option value="creditos">Creditos</option>
+              </select>
+            </label>
+            <label>
+              Direccion
+              <select value={sortDir} onChange={(e) => setSortDir(e.target.value)}>
+                <option value="asc">Ascendente</option>
+                <option value="desc">Descendente</option>
+              </select>
+            </label>
+          </div>
+        </div>
         <div className="table-wrap">
           <table>
             <thead>
@@ -124,7 +209,7 @@ function MateriasPage({ isAdmin, materias, onCreate, onUpdate, onDelete }) {
               </tr>
             </thead>
             <tbody>
-              {materias.map((materia) => (
+              {materiasOrdenadas.map((materia) => (
                 <tr key={materia.id}>
                   <td>{materia.nombre}</td>
                   <td>{materia.codigo}</td>
@@ -146,7 +231,7 @@ function MateriasPage({ isAdmin, materias, onCreate, onUpdate, onDelete }) {
         </div>
         {!isAdmin && (
           <ul className="list-grid">
-            {materias.map((m) => (
+            {materiasOrdenadas.map((m) => (
               <li key={m.id}>
                 <strong>{m.nombre}</strong>
                 {m.codigo && <span>Codigo: {m.codigo}</span>}
